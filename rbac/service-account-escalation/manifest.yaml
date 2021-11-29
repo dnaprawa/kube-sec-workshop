@@ -1,0 +1,30 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-esc
+  namespace: default
+  labels:
+    app: pod-esc
+spec:
+  containers:
+    - image: k8smaestro/rbac-pod-escalation:2.0
+      name: pod-escalation
+      ports:
+        - containerPort: 80
+          name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pod-esc
+  namespace: default
+spec:
+  # type: NodePort
+  type: LoadBalancer
+  selector:
+    app: pod-esc
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80

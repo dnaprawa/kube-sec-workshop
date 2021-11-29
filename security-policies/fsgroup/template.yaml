@@ -1,0 +1,40 @@
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: podsecurityfsgrouppolicy
+  annotations:
+    description: >-
+      FsGroup should be set to integer greater than 0
+spec:
+  crd:
+    spec:
+      names:
+        kind: PodSecurityFsgroupPolicy
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package podsecurityfsgrouppolicy
+
+        violation[{"msg": msg}] {
+          o := input[_]
+          not input_allowed_fsgroup(o)
+          msg := sprintf("FsGroup must be greater than 0, pod: %v", [input.review.object.metadata.name])
+        }
+
+        input_allowed_fsgroup(o) {
+          o.spec.securityContext.fsGroup > 0
+        }
+
+        input[o] {
+          input.review.object.kind == "Pod"
+          o := input.review.object
+        }
+
+        input[o] {
+          input.review.object.kind == "CronJob"
+          o := input.review.object.spec.jobTemplate.spec.template
+        }
+
+        input[o] {
+          o := input.review.object.spec.template
+        }

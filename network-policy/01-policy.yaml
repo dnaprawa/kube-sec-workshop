@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-policy
+  namespace: ${NAMESPACE}
+spec:
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          name: ${ALLOWED_TRAFFIC_FROM}
+    ports:
+    - port: ${PORT_ALLOWED}
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      name: ${ALLOWED_TRAFFIC_TO}
+  policyTypes:
+  - Ingress

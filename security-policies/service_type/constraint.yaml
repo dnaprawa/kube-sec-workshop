@@ -1,0 +1,14 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: ServiceTypePolicy
+metadata:
+  name: servicetypepolicy
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Service"]
+    excludedNamespaces: []
+  parameters:
+    serviceTypes: [
+      "ClusterIP"
+    ]

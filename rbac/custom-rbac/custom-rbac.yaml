@@ -1,0 +1,106 @@
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  # The namespace in which this role applies
+  namespace: dev
+  name: dev-readonly
+rules:
+  # The api groups that contain the resources we want to manage
+- apiGroups: [\"\", "apps", "extensions"]
+  # The resources to which this role grants permissions
+  resources: ["pods", "pods/log", "services", "deployments", "configmaps"]
+  # The permissions granted by this role
+  verbs: ["get", "list", "watch"]
+---
+
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: sre-full-acess
+  namespace: prod
+rules:
+- apiGroups: ["", "extensions", "apps"]
+  resources: ["*"]
+  verbs: ["*"]
+- apiGroups: ["batch"]
+  resources:
+  - jobs
+  - cronjobs
+  verbs: ["*"]
+---
+
+# Grants read-write permissions to common resource types in all namespaces
+# We use a ClusterRole because we're defining cluster-wide permissions.
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: manager
+rules:
+  # The api groups that contain the resources we want to manage
+- apiGroups: [\"\", "apps", "extensions"]
+  # The resources to which this role grants permissions
+  resources: ["pods", "services", "deployments", "configmaps"]
+  # The permissions granted by this role
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+  # More verbs... :)
+  # verbs: ["get", "bind", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+  # *bind - allows to bind a particular RBAC role for other users. See below example
+    # kind: ClusterRole
+    # metadata:
+    #   name: role-grantor
+    # rules:
+    # - apiGroups: ["rbac.authorization.k8s.io"]
+    #   resources: ["rolebindings"]
+    #   verbs: ["create"]
+    # - apiGroups: ["rbac.authorization.k8s.io"]
+    #   resources: ["clusterroles"]
+    #   verbs: ["bind"]
+    #   # omit resourceNames to allow binding any ClusterRole
+    #   resourceNames: ["admin","edit","view"]
+---
+
+# Allows anyone in the "manager" group to read resources in any namespace.
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: manager-binding
+subjects:
+- kind: User
+  name: manager
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: manager
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# This role binding allows anyone in the "developer" group to have read access
+# to resources in the dev namespace.
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: dev
+  name: auditor-binding
+subjects:
+- kind: User
+  name: auditor
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: dev-readonly
+  apiGroup: rbac.authorization.k8s.io
+---
+
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: sre-full-acess-binding
+  namespace: prod
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: sre-full-acess
+subjects:
+- kind: User
+  name: sre
+  apiGroup: rbac.authorization.k8s.io
