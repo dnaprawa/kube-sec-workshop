@@ -1,14 +1,10 @@
 apiVersion: constraints.gatekeeper.sh/v1beta1
-kind: PodAutomountserviceaccounttokenPolicy
+kind: PodSecurityAutomountServiceAccountToken
 metadata:
-  name: podautomountserviceaccounttokenpolicy
+  name: psp-automount-serviceaccount-token-pod
 spec:
   match:
     kinds:
       - apiGroups: [""]
-        kinds: ["Pod", "ReplicationController"]
-      - apiGroups: ["apps"]
-        kinds: ["Deployment", "StatefulSet", "DaemonSet", "ReplicaSet"]
-      - apiGroups: ["batch"]
-        kinds: ["Job", "CronJob"]
+        kinds: ["Pod"]
     excludedNamespaces: []

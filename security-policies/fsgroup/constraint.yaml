@@ -1,14 +1,15 @@
 apiVersion: constraints.gatekeeper.sh/v1beta1
-kind: PodSecurityFsgroupPolicy
+kind: PodSecurityFsGroup
 metadata:
-  name: podsecurityfsgrouppolicy
+  name: psp-fsgroup
 spec:
   match:
     kinds:
       - apiGroups: [""]
-        kinds: ["Pod", "ReplicationController"]
-      - apiGroups: ["apps"]
-        kinds: ["Deployment", "StatefulSet", "DaemonSet", "ReplicaSet"]
-      - apiGroups: ["batch"]
-        kinds: ["Job", "CronJob"]
+        kinds: ["Pod"]
     excludedNamespaces: []
+  parameters:
+    rule: "MayRunAs" #"MustRunAs" #"MayRunAs", "RunAsAny"
+    ranges:
+    - min: 1000
+      max: 10001

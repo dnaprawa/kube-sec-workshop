@@ -1,48 +1,43 @@
 apiVersion: templates.gatekeeper.sh/v1beta1
 kind: ConstraintTemplate
 metadata:
-  name: podautomountserviceaccounttokenpolicy
+  name: podsecurityautomountserviceaccounttoken
   annotations:
     description: >-
-      Automount of default service account token should be disabled
+      Controls the ability of any Pod to enable automountServiceAccountToken.
 spec:
   crd:
     spec:
       names:
-        kind: PodAutomountserviceaccounttokenPolicy
+        kind: PodSecurityAutomountServiceAccountToken
+      validation:
+        openAPIV3Schema:
+          description: >-
+            Controls the ability of any Pod to enable automountServiceAccountToken.
   targets:
     - target: admission.k8s.gatekeeper.sh
       rego: |
-        package podautomountserviceaccounttokenpolicy
-
+        package podsecurityautomountserviceaccounttoken
         violation[{"msg": msg}] {
-          o := input[_]
-          input_automount_service_account_token(o)
-          msg := sprintf("Service Account token automount must be disabled in the Pod definition (automountServiceAccountToken: false), pod: %v", [input.review.object.metadata.name])
+          obj := input.review.object
+          mountServiceAccountToken(obj.spec)
+          msg := sprintf("Automounting service account token is disallowed, pod: %v", [obj.metadata.name])
         }
-
-        input_automount_service_account_token(o) {
-          has_field(o.spec, "automountServiceAccountToken")
+        mountServiceAccountToken(spec) {
+          spec.automountServiceAccountToken == true
         }
-        
-        input_automount_service_account_token(o) {
-          not o.spec.automountServiceAccountToken == false
+        # if there is no automountServiceAccountToken spec, check on volumeMount in containers. Service Account token is mounted on /var/run/secrets/kubernetes.io/serviceaccount
+        # https://kubernetes.io/docs/reference/access-authn-authz/service-accounts-admin/#serviceaccount-admission-controller
+        mountServiceAccountToken(spec) {
+          not has_key(spec, "automountServiceAccountToken")
+          "/var/run/secrets/kubernetes.io/serviceaccount" == input_containers[_].volumeMounts[_].mountPath
         }
-
-        input[o] {
-          input.review.object.kind == "Pod"
-          o := input.review.object
+        input_containers[c] {
+          c := input.review.object.spec.containers[_]
         }
-
-        input[o] {
-          input.review.object.kind == "CronJob"
-          o := input.review.object.spec.jobTemplate.spec.template
+        input_containers[c] {
+          c := input.review.object.spec.initContainers[_]
         }
-
-        input[o] {
-          o := input.review.object.spec.template
-        }
-
-        has_field(object, field) = true {
-          object[field]
+        has_key(x, k) {
+          _ = x[k]
         }

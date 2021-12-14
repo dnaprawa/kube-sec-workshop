@@ -1,40 +1,89 @@
 apiVersion: templates.gatekeeper.sh/v1beta1
 kind: ConstraintTemplate
 metadata:
-  name: podsecurityfsgrouppolicy
+  name: podsecurityfsgroup
   annotations:
     description: >-
-      FsGroup should be set to integer greater than 0
+      Controls allocating an FSGroup that owns the Pod's volumes. Corresponds
+      to the `fsGroup` field in a PodSecurityPolicy. For more information, see
+      https://kubernetes.io/docs/concepts/policy/pod-security-policy/#volumes-and-file-systems
 spec:
   crd:
     spec:
       names:
-        kind: PodSecurityFsgroupPolicy
+        kind: PodSecurityFsGroup
+      validation:
+        # Schema for the `parameters` field
+        openAPIV3Schema:
+          type: object
+          description: >-
+            Controls allocating an FSGroup that owns the Pod's volumes. Corresponds
+            to the `fsGroup` field in a PodSecurityPolicy. For more information, see
+            https://kubernetes.io/docs/concepts/policy/pod-security-policy/#volumes-and-file-systems
+          properties:
+            rule:
+              description: "An FSGroup rule name."
+              enum:
+                - MayRunAs
+                - MustRunAs
+                - RunAsAny
+              type: string
+            ranges:
+              type: array
+              description: "GID ranges affected by the rule."
+              items:
+                type: object
+                properties:
+                  min:
+                    description: "The minimum GID in the range, inclusive."
+                    type: integer
+                  max:
+                    description: "The maximum GID in the range, inclusive."
+                    type: integer
   targets:
     - target: admission.k8s.gatekeeper.sh
       rego: |
-        package podsecurityfsgrouppolicy
-
-        violation[{"msg": msg}] {
-          o := input[_]
-          not input_allowed_fsgroup(o)
-          msg := sprintf("FsGroup must be greater than 0, pod: %v", [input.review.object.metadata.name])
+        package podsecurityfsgroup
+        violation[{"msg": msg, "details": {}}] {
+          spec := input.review.object.spec
+          not input_fsGroup_allowed(spec)
+          msg := sprintf("The provided pod spec fsGroup is not allowed, pod: %v. Allowed fsGroup: %v", [input.review.object.metadata.name, input.parameters])
         }
-
-        input_allowed_fsgroup(o) {
-          o.spec.securityContext.fsGroup > 0
+        input_fsGroup_allowed(spec) {
+          # RunAsAny - No range is required. Allows any fsGroup ID to be specified.
+          input.parameters.rule == "RunAsAny"
         }
-
-        input[o] {
-          input.review.object.kind == "Pod"
-          o := input.review.object
+        input_fsGroup_allowed(spec) {
+          # MustRunAs - Validates pod spec fsgroup against all ranges
+          input.parameters.rule == "MustRunAs"
+          fg := spec.securityContext.fsGroup
+          count(input.parameters.ranges) > 0
+          range := input.parameters.ranges[_]
+          value_within_range(range, fg)
         }
-
-        input[o] {
-          input.review.object.kind == "CronJob"
-          o := input.review.object.spec.jobTemplate.spec.template
+        input_fsGroup_allowed(spec) {
+            # MayRunAs - Validates pod spec fsgroup against all ranges or allow pod spec fsgroup to be left unset
+            input.parameters.rule == "MayRunAs"
+            not has_field(spec, "securityContext")
         }
-
-        input[o] {
-          o := input.review.object.spec.template
+        input_fsGroup_allowed(spec) {
+            # MayRunAs - Validates pod spec fsgroup against all ranges or allow pod spec fsgroup to be left unset
+            input.parameters.rule == "MayRunAs"
+            not spec.securityContext.fsGroup
+        }
+        input_fsGroup_allowed(spec) {
+          # MayRunAs - Validates pod spec fsgroup against all ranges or allow pod spec fsgroup to be left unset
+          input.parameters.rule == "MayRunAs"
+          fg := spec.securityContext.fsGroup
+          count(input.parameters.ranges) > 0
+          range := input.parameters.ranges[_]
+          value_within_range(range, fg)
+        }
+        value_within_range(range, value) {
+          range.min <= value
+          range.max >= value
+        }
+        # has_field returns whether an object has a field
+        has_field(object, field) = true {
+          object[field]
         }
