@@ -17,7 +17,14 @@ spec:
     metadata:
       labels:
         name: projectapp-backend
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/backend: runtime/default
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
       - name: backend
         image: k8smaestro/projectapp-backend:2.0
@@ -26,6 +33,14 @@ spec:
           - name: http
             containerPort: 8080
             protocol: TCP
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+          procMount: "Default"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -68,7 +83,14 @@ spec:
     metadata:
       labels:
         name: projectapp-frontend
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/frontend: runtime/default
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 5000
+        runAsGroup: 5000
+        fsGroup: 5000
       containers:
       - name: frontend
         image: k8smaestro/projectapp-frontend:2.0
@@ -76,6 +98,14 @@ spec:
           - name: http
             containerPort: 8080
             protocol: TCP
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+          procMount: "Default"
         readinessProbe:
           httpGet:
             scheme: HTTP

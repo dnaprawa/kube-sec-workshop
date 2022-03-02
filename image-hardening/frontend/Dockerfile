@@ -1,11 +1,35 @@
-FROM node:lts
+FROM node:16.13.1-buster-slim as build
+
+ARG NODE_ENV=production
+ENV NODE_ENV $NODE_ENV
 
 WORKDIR /code
 
-ADD package.json ./
+COPY package.json ./
 
 RUN npm install
 
-ADD . /code
+COPY . /code
 
-CMD ["npm", "start"]
+RUN npm run build
+
+FROM nginx:1.21.0
+
+COPY --from=build /code/build /usr/share/nginx/html
+
+RUN useradd -u 5000 app \
+    && mkdir -p /var/run/nginx /var/tmp/nginx \
+    && chown -R app:app /usr/share/nginx /var/run/nginx /var/tmp/nginx
+
+COPY ./nginx.conf /etc/nginx/nginx.conf
+COPY ./default.conf /etc/nginx/conf.d/
+
+WORKDIR /usr/share/nginx/html
+COPY ./env.sh .env ./
+RUN chmod +x env.sh
+
+USER 5000:5000
+
+EXPOSE 8080
+
+CMD ["/bin/sh", "-c", "/usr/share/nginx/html/env.sh && nginx -g \"daemon off;\""]

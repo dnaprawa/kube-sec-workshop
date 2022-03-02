@@ -1,0 +1,154 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: webapp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deploy
+  namespace: webapp
+  labels:
+    application: web-app
+    version: "1.20.0"
+    release: "1"
+    stage: production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      application: web-app
+      stage: production
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      name: pod-nginx
+      labels:
+        application: web-app
+        stage: production
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/ctr-nginx: runtime/default
+    spec:
+      hostPID: false
+      hostIPC: false
+      hostNetwork: false
+      securityContext:
+        runAsUser: 10000
+        runAsNonRoot: true
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      automountServiceAccountToken: false
+      initContainers:
+      - name: init-sync-ctr
+        image: k8smaestro/git:2.11.1
+        imagePullPolicy: Always
+        volumeMounts:
+        - mountPath: /var/lib/data
+          name: git 
+        command:
+        - "sh"
+        - "-c"
+        - "git clone $(GIT_REPO) . && git pull"
+        workingDir: /var/lib/data
+        env:
+        - name: GIT_REPO
+          value: https://github.com/mdn/beginner-html-site-scripted
+        securityContext:
+          privileged: false
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - all
+          procMount: "Default"
+      containers:
+      - name: ctr-nginx
+        image : k8smaestro/nginx-unprivileged:1.20.0
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+        volumeMounts:
+        - mountPath: /usr/share/nginx/html
+          name: git 
+        - mountPath:  /var/run/nginx
+          name: run
+        - mountPath:  /var/tmp/nginx
+          name: tmp
+        - mountPath:  /var/log/nginx
+          name: log
+        - mountPath:  /var/cache/nginx
+          name: cache
+        lifecycle:
+          preStop:
+            exec:
+              command: ['/bin/sh', '-c', 'sleep 3; /usr/bin/nginx -c /etc/nginx/nginx.conf -s quit; while grep [n]ginx; do sleep 3; done']
+        readinessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /index.html
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /index.html
+            port: http
+          failureThreshold: 1
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "100Mi"
+            cpu: "200m"
+          limits:
+            memory: "300Mi"
+            cpu: "500m"
+        securityContext:
+          privileged: false
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - all
+          procMount: "Default"
+      volumes:
+      - emptyDir: {}
+        name: git
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 100Mi
+        name: run
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 100Mi
+        name: tmp
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 100Mi
+        name: log
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 100Mi
+        name: cache
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: webapp
+  labels:
+    application: web-app
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+  selector:
+    application: web-app
+    stage: production
