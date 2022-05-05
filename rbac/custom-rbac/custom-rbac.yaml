@@ -37,7 +37,7 @@ metadata:
   name: manager
 rules:
   # The api groups that contain the resources we want to manage
-- apiGroups: [\"\", "apps", "extensions"]
+- apiGroups: ["", "apps", "extensions"]
   # The resources to which this role grants permissions
   resources: ["pods", "services", "deployments", "configmaps"]
   # The permissions granted by this role
@@ -102,5 +102,5 @@ roleRef:
   name: sre-full-acess
 subjects:
 - kind: User
-  name: sre
+  name: dnaprawa
   apiGroup: rbac.authorization.k8s.io
